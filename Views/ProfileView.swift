@@ -78,6 +78,8 @@ struct ProfileView: View {
         .task(id: user.login) {
             await viewModel.load(username: user.login)
         }
+        .animation(.easeInOut(duration: 0.3), value: viewModel.isLoading)
+        .animation(.easeInOut(duration: 0.3), value: viewModel.profile != nil)
     }
 
     private var loadingView: some View {
@@ -144,24 +146,45 @@ struct ProfileView: View {
                 }
 
                 if let url = URL(string: profile.htmlURL) {
-                    Link(destination: url) {
-                        HStack(spacing: 10) {
-                            Image(systemName: "arrow.up.right.square")
+                    HStack(spacing: 12) {
+                        Link(destination: url) {
+                            HStack(spacing: 10) {
+                                Image(systemName: "arrow.up.right.square")
 
-                            Text("View GitHub Profile")
-                                .fontWeight(.semibold)
+                                Text("View GitHub Profile")
+                                    .fontWeight(.semibold)
 
-                            Spacer()
+                                Spacer()
 
-                            Image(systemName: "arrow.up.right")
-                                .font(.caption)
+                                Image(systemName: "arrow.up.right")
+                                    .font(.caption)
+                            }
+                            .foregroundStyle(.white)
+                            .padding(17)
+                            .background(
+                                Color.purple.opacity(0.8),
+                                in: RoundedRectangle(cornerRadius: 17)
+                            )
                         }
-                        .foregroundStyle(.white)
-                        .padding(17)
-                        .background(
-                            Color.purple.opacity(0.8),
-                            in: RoundedRectangle(cornerRadius: 17)
-                        )
+
+                        ShareLink(item: url) {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.title3.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 54, height: 54)
+                                .background(
+                                    Color.white.opacity(0.09),
+                                    in: RoundedRectangle(cornerRadius: 17)
+                                )
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 17)
+                                        .stroke(
+                                            Color.white.opacity(0.12),
+                                            lineWidth: 1
+                                        )
+                                }
+                        }
+                        .accessibilityLabel("Share GitHub profile")
                     }
                 }
 
@@ -327,8 +350,17 @@ struct ProfileView: View {
                 LazyVStack(spacing: 12) {
                     ForEach(viewModel.repositories) { repo in
                         repositoryCard(repo)
+                            .transition(
+                                .opacity.combined(
+                                    with: .move(edge: .bottom)
+                                )
+                            )
                     }
                 }
+                .animation(
+                    .easeInOut(duration: 0.35),
+                    value: viewModel.repositories.count
+                )
             }
         }
     }

@@ -1,4 +1,3 @@
-
 import SwiftUI
 
 struct ContentView: View {
@@ -24,9 +23,9 @@ struct ContentView: View {
     private var background: some View {
         LinearGradient(
             colors: [
-                Color(red: 0.05, green: 0.07, blue: 0.15),
-                Color(red: 0.09, green: 0.08, blue: 0.22),
-                Color(red: 0.04, green: 0.06, blue: 0.12)
+                Color(red: 0.04, green: 0.05, blue: 0.12),
+                Color(red: 0.10, green: 0.07, blue: 0.23),
+                Color(red: 0.05, green: 0.06, blue: 0.14)
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
@@ -39,54 +38,68 @@ struct ContentView: View {
             ZStack {
                 background
 
-                VStack(spacing: 24) {
+                VStack(spacing: 22) {
                     header
                     searchBar
                     filtersSection
 
                     if viewModel.isLoading {
-                        Spacer()
+                        loadingState
+                            .frame(maxHeight: .infinity)
+                            .transition(.opacity)
 
-                        ProgressView()
-                            .tint(.white)
-
-                        Text("Finding developers...")
-                            .foregroundStyle(.white.opacity(0.7))
-
-                        Spacer()
                     } else if let message = viewModel.errorMessage {
-                        Spacer()
+                        VStack(spacing: 18) {
+                            emptyState(
+                                icon: "wifi.exclamationmark",
+                                title: "Something went wrong",
+                                message: message
+                            )
 
-                        emptyState(
-                            icon: "person.crop.circle.badge.questionmark",
-                            title: "No Results",
-                            message: message
-                        )
+                            Button {
+                                performSearch()
+                            } label: {
+                                Label(
+                                    "Try again",
+                                    systemImage: "arrow.clockwise"
+                                )
+                                .font(.headline)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 13)
+                                .background(
+                                    Color.purple,
+                                    in: RoundedRectangle(cornerRadius: 15)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .frame(maxHeight: .infinity)
+                        .transition(.opacity)
 
-                        Spacer()
                     } else if viewModel.users.isEmpty {
-                        Spacer()
-
                         emptyState(
                             icon: "chevron.left.forwardslash.chevron.right",
                             title: "Discover developers",
                             message: "Search GitHub to find developers and explore their profiles."
                         )
+                        .frame(maxHeight: .infinity)
+                        .transition(.opacity)
 
-                        Spacer()
                     } else {
                         HStack {
                             Text("SEARCH RESULTS")
                                 .font(.caption.weight(.bold))
                                 .tracking(2)
-                                .foregroundStyle(.white.opacity(0.6))
+                                .foregroundStyle(.white.opacity(0.65))
 
                             Spacer()
 
                             Text("\(viewModel.users.count) found")
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(.purple)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.purple.opacity(0.95))
                         }
+                        .transition(.opacity)
 
                         ScrollView {
                             LazyVStack(spacing: 14) {
@@ -95,15 +108,29 @@ struct ContentView: View {
                                         developerCard(user: user)
                                     }
                                     .buttonStyle(.plain)
+                                    .transition(
+                                        .opacity.combined(
+                                            with: .move(edge: .bottom)
+                                        )
+                                    )
                                 }
                             }
-                            .padding(.bottom, 20)
+                            .padding(.bottom, 24)
                         }
                         .scrollIndicators(.hidden)
+                        .transition(.opacity)
                     }
                 }
-                .padding(.horizontal, 22)
+                .padding(.horizontal, 20)
                 .padding(.top, 18)
+                .animation(
+                    .easeInOut(duration: 0.3),
+                    value: viewModel.users.count
+                )
+                .animation(
+                    .easeInOut(duration: 0.3),
+                    value: viewModel.isLoading
+                )
             }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: GitHubUser.self) { user in
@@ -112,27 +139,179 @@ struct ContentView: View {
         }
     }
 
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: "chevron.left.forwardslash.chevron.right")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(
+                        LinearGradient(
+                            colors: [.purple, .blue.opacity(0.8)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        in: RoundedRectangle(cornerRadius: 15)
+                    )
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("DEVFINDER")
+                        .font(.caption.weight(.heavy))
+                        .tracking(3)
+                        .foregroundStyle(.white)
+
+                    Text("GITHUB DEVELOPER EXPLORER")
+                        .font(.system(size: 9, weight: .medium))
+                        .tracking(1)
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+            }
+
+            Text("Find your\nnext developer.")
+                .font(.system(
+                    size: 36,
+                    weight: .bold,
+                    design: .rounded
+                ))
+                .tracking(-1)
+                .foregroundStyle(.white)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("Explore the people building on GitHub.")
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.65))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var searchBar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.purple)
+
+            TextField(
+                "Search GitHub developers",
+                text: $viewModel.query
+            )
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .submitLabel(.search)
+            .onSubmit {
+                performSearch()
+            }
+
+            if !viewModel.query.isEmpty {
+                Button {
+                    viewModel.query = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search text")
+            }
+
+            Button {
+                performSearch()
+            } label: {
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 42, height: 42)
+                    .background(
+                        LinearGradient(
+                            colors: [.purple, .blue.opacity(0.85)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        in: RoundedRectangle(cornerRadius: 14)
+                    )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Search developers")
+        }
+        .padding(8)
+        .padding(.leading, 8)
+        .background(
+            Color.white.opacity(0.07),
+            in: RoundedRectangle(cornerRadius: 21)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 21)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        }
+    }
+
+    private func performSearch() {
+        Task {
+            await viewModel.search()
+        }
+    }
+
+    private var loadingState: some View {
+        VStack(spacing: 20) {
+            ZStack {
+                Circle()
+                    .stroke(
+                        Color.purple.opacity(0.18),
+                        lineWidth: 5
+                    )
+                    .frame(width: 76, height: 76)
+
+                ProgressView()
+                    .controlSize(.large)
+                    .tint(.purple)
+                    .scaleEffect(1.3)
+            }
+
+            VStack(spacing: 7) {
+                Text("Finding developers")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.white)
+
+                Text("Searching GitHub for matching profiles...")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.6))
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(28)
+    }
+
     private var favoritesTab: some View {
         NavigationStack {
             ZStack {
                 background
 
                 VStack(alignment: .leading, spacing: 24) {
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 12) {
                         HStack(spacing: 10) {
                             Image(systemName: "heart.fill")
                                 .font(.headline)
                                 .foregroundStyle(.white)
-                                .frame(width: 42, height: 42)
+                                .frame(width: 44, height: 44)
                                 .background(
-                                    Color.purple,
-                                    in: RoundedRectangle(cornerRadius: 14)
+                                    LinearGradient(
+                                        colors: [.pink, .purple],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    in: RoundedRectangle(cornerRadius: 15)
                                 )
 
-                            Text("YOUR COLLECTION")
-                                .font(.caption.weight(.bold))
-                                .tracking(3)
-                                .foregroundStyle(.white.opacity(0.8))
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("YOUR COLLECTION")
+                                    .font(.caption.weight(.bold))
+                                    .tracking(2)
+                                    .foregroundStyle(.white.opacity(0.85))
+
+                                Text("\(favoritesManager.favorites.count) saved profiles")
+                                    .font(.caption)
+                                    .foregroundStyle(.white.opacity(0.5))
+                            }
                         }
 
                         Text("Favorite\ndevelopers.")
@@ -168,7 +347,7 @@ struct ContentView: View {
                             Spacer()
 
                             Text("\(favoritesManager.favorites.count) saved")
-                                .font(.caption.weight(.medium))
+                                .font(.caption.weight(.semibold))
                                 .foregroundStyle(.purple)
                         }
 
@@ -179,15 +358,24 @@ struct ContentView: View {
                                         developerCard(user: user)
                                     }
                                     .buttonStyle(.plain)
+                                    .transition(
+                                        .opacity.combined(
+                                            with: .move(edge: .bottom)
+                                        )
+                                    )
                                 }
                             }
-                            .padding(.bottom, 20)
+                            .padding(.bottom, 24)
                         }
                         .scrollIndicators(.hidden)
                     }
                 }
-                .padding(.horizontal, 22)
+                .padding(.horizontal, 20)
                 .padding(.top, 22)
+                .animation(
+                    .easeInOut(duration: 0.3),
+                    value: favoritesManager.favorites.count
+                )
             }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: GitHubUser.self) { user in
@@ -196,90 +384,8 @@ struct ContentView: View {
         }
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                Image(systemName: "chevron.left.forwardslash.chevron.right")
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 42, height: 42)
-                    .background(
-                        LinearGradient(
-                            colors: [.purple, .blue.opacity(0.8)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        in: RoundedRectangle(cornerRadius: 14)
-                    )
-
-                Text("DEVFINDER")
-                    .font(.caption.weight(.bold))
-                    .tracking(3)
-                    .foregroundStyle(.white.opacity(0.8))
-            }
-
-            Text("Find your\nnext developer.")
-                .font(.system(size: 36, weight: .bold, design: .rounded))
-                .tracking(-1)
-                .foregroundStyle(.white)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text("Explore the people building on GitHub.")
-                .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.65))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var searchBar: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.purple)
-
-            TextField(
-                "Search GitHub developers",
-                text: $viewModel.query
-            )
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .submitLabel(.search)
-            .onSubmit {
-                Task {
-                    await viewModel.search()
-                }
-            }
-
-            Button {
-                Task {
-                    await viewModel.search()
-                }
-            } label: {
-                Image(systemName: "arrow.right")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 42, height: 42)
-                    .background(
-                        Color.purple,
-                        in: RoundedRectangle(cornerRadius: 13)
-                    )
-            }
-            .accessibilityLabel("Search developers")
-        }
-        .padding(8)
-        .padding(.leading, 8)
-        .background(
-            Color.white.opacity(0.08),
-            in: RoundedRectangle(cornerRadius: 20)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 20)
-                .stroke(Color.white.opacity(0.12), lineWidth: 1)
-        }
-    }
-
     private func developerCard(user: GitHubUser) -> some View {
-        HStack(spacing: 15) {
+        HStack(spacing: 14) {
             AsyncImage(url: URL(string: user.avatarURL)) { image in
                 image
                     .resizable()
@@ -289,15 +395,23 @@ struct ContentView: View {
                     Color.white.opacity(0.08)
 
                     Image(systemName: "person.fill")
-                        .foregroundStyle(.white.opacity(0.5))
+                        .font(.title2)
+                        .foregroundStyle(.white.opacity(0.45))
                 }
             }
-            .frame(width: 62, height: 62)
+            .frame(width: 64, height: 64)
             .clipShape(RoundedRectangle(cornerRadius: 19))
+            .overlay {
+                RoundedRectangle(cornerRadius: 19)
+                    .stroke(
+                        Color.white.opacity(0.12),
+                        lineWidth: 1
+                    )
+            }
 
             VStack(alignment: .leading, spacing: 7) {
                 Text(user.name ?? user.login)
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
 
@@ -306,11 +420,15 @@ struct ContentView: View {
                     .foregroundStyle(.white.opacity(0.55))
                     .lineLimit(1)
 
-                if let location = user.location, !location.isEmpty {
-                    Label(location, systemImage: "mappin.and.ellipse")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.65))
-                        .lineLimit(1)
+                if let location = user.location,
+                   !location.isEmpty {
+                    Label(
+                        location,
+                        systemImage: "mappin.and.ellipse"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.65))
+                    .lineLimit(1)
                 }
 
                 HStack(spacing: 12) {
@@ -330,38 +448,51 @@ struct ContentView: View {
                 }
                 .font(.caption2)
                 .foregroundStyle(
-                    Color(red: 0.75, green: 0.63, blue: 1)
+                    Color(red: 0.78, green: 0.68, blue: 1)
                 )
 
                 HStack(spacing: 5) {
-                    Image(systemName: "arrow.up.right")
-                        .font(.system(size: 10, weight: .bold))
-
                     Text("View profile")
                         .font(.caption.weight(.medium))
+
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 9, weight: .bold))
                 }
                 .foregroundStyle(
-                    Color(red: 0.75, green: 0.63, blue: 1)
+                    Color(red: 0.78, green: 0.68, blue: 1)
                 )
+                .padding(.top, 2)
             }
 
             Spacer(minLength: 0)
 
             Button {
-                favoritesManager.toggle(user)
+                withAnimation(.spring(
+                    response: 0.32,
+                    dampingFraction: 0.48
+                )) {
+                    favoritesManager.toggle(user)
+                }
             } label: {
                 Image(
                     systemName: favoritesManager.isFavorite(user.id)
                         ? "heart.fill"
                         : "heart"
                 )
-                .font(.title3)
+                .font(.system(size: 19, weight: .semibold))
                 .foregroundStyle(
                     favoritesManager.isFavorite(user.id)
-                        ? .pink
-                        : .white.opacity(0.65)
+                        ? Color.pink
+                        : Color.white.opacity(0.65)
                 )
-                .frame(width: 38, height: 42)
+                .symbolEffect(
+                    .bounce,
+                    value: favoritesManager.isFavorite(user.id)
+                )
+                .scaleEffect(
+                    favoritesManager.isFavorite(user.id) ? 1.08 : 1.0
+                )
+                .frame(width: 38, height: 44)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -372,50 +503,73 @@ struct ContentView: View {
             )
 
             Image(systemName: "chevron.right")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.white.opacity(0.45))
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.white.opacity(0.35))
         }
-        .padding(16)
+        .padding(15)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            Color.white.opacity(0.07),
-            in: RoundedRectangle(cornerRadius: 23)
-        )
+        .background {
+            RoundedRectangle(cornerRadius: 23)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.085),
+                            Color.white.opacity(0.035)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        }
         .overlay {
             RoundedRectangle(cornerRadius: 23)
-                .stroke(Color.white.opacity(0.09), lineWidth: 1)
+                .stroke(
+                    Color.white.opacity(0.09),
+                    lineWidth: 1
+                )
         }
+        .contentShape(RoundedRectangle(cornerRadius: 23))
     }
-    
-    private var filtersSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "slider.horizontal.3")
-                    .foregroundStyle(.purple)
 
-                Text("FILTERS")
-                    .font(.caption.weight(.bold))
-                    .tracking(2)
-                    .foregroundStyle(.white.opacity(0.8))
+    private var filtersSection: some View {
+        VStack(alignment: .leading, spacing: 13) {
+            HStack {
+                HStack(spacing: 8) {
+                    Image(systemName: "slider.horizontal.3")
+                        .foregroundStyle(.purple)
+
+                    Text("REFINE SEARCH")
+                        .font(.caption.weight(.bold))
+                        .tracking(2)
+                        .foregroundStyle(.white.opacity(0.8))
+                }
 
                 Spacer()
 
-                Button("Clear") {
-                    viewModel.language = ""
-                    viewModel.location = ""
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        viewModel.language = ""
+                        viewModel.location = ""
+                    }
+                } label: {
+                    Label("Clear", systemImage: "arrow.counterclockwise")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.purple)
                 }
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.purple.opacity(0.95))
+                .buttonStyle(.plain)
             }
 
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 7) {
                     Text("LANGUAGE")
                         .font(.system(size: 10, weight: .bold))
                         .tracking(1)
-                        .foregroundStyle(.white.opacity(0.55))
+                        .foregroundStyle(.white.opacity(0.5))
 
-                    Picker("Language", selection: $viewModel.language) {
+                    Picker(
+                        "Language",
+                        selection: $viewModel.language
+                    ) {
                         Text("Any").tag("")
                         Text("Swift").tag("Swift")
                         Text("Python").tag("Python")
@@ -431,18 +585,26 @@ struct ContentView: View {
                     .pickerStyle(.menu)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
+                    .padding(.vertical, 6)
                     .background(
-                        Color.white.opacity(0.08),
-                        in: RoundedRectangle(cornerRadius: 12)
+                        Color.white.opacity(0.07),
+                        in: RoundedRectangle(cornerRadius: 13)
                     )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 13)
+                            .stroke(
+                                Color.white.opacity(0.08),
+                                lineWidth: 1
+                            )
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 7) {
                     Text("LOCATION")
                         .font(.system(size: 10, weight: .bold))
                         .tracking(1)
-                        .foregroundStyle(.white.opacity(0.55))
+                        .foregroundStyle(.white.opacity(0.5))
 
                     TextField(
                         "e.g. Toronto",
@@ -454,15 +616,23 @@ struct ContentView: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 11)
                     .background(
-                        Color.white.opacity(0.08),
-                        in: RoundedRectangle(cornerRadius: 12)
+                        Color.white.opacity(0.07),
+                        in: RoundedRectangle(cornerRadius: 13)
                     )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 13)
+                            .stroke(
+                                Color.white.opacity(0.08),
+                                lineWidth: 1
+                            )
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             Text("Combine filters with a username or search on their own.")
                 .font(.caption2)
-                .foregroundStyle(.white.opacity(0.5))
+                .foregroundStyle(.white.opacity(0.45))
         }
     }
 
@@ -473,28 +643,37 @@ struct ContentView: View {
     ) -> some View {
         VStack(spacing: 16) {
             Image(systemName: icon)
-                .font(.system(size: 35, weight: .medium))
+                .font(.system(size: 34, weight: .medium))
                 .foregroundStyle(
-                    Color(red: 0.75, green: 0.63, blue: 1)
+                    Color(red: 0.78, green: 0.68, blue: 1)
                 )
-                .frame(width: 86, height: 86)
-                .background(
-                    Color.purple.opacity(0.16),
-                    in: RoundedRectangle(cornerRadius: 28)
-                )
+                .frame(width: 84, height: 84)
+                .background {
+                    RoundedRectangle(cornerRadius: 28)
+                        .fill(Color.purple.opacity(0.16))
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 28)
+                        .stroke(
+                            Color.purple.opacity(0.18),
+                            lineWidth: 1
+                        )
+                }
 
             Text(title)
                 .font(.title3.weight(.bold))
                 .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
 
             Text(message)
                 .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.65))
+                .foregroundStyle(.white.opacity(0.62))
                 .multilineTextAlignment(.center)
                 .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 18)
+        .padding(.vertical, 20)
     }
 }
-
